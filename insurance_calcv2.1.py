@@ -151,7 +151,7 @@ def calculate_premium(current_age, payout_age, interest, payout, gender='female'
         weighted_total_annuity += accumulated_annuity(evaluation_age - current_age, interest, 1) * prob_death_and_age_is_x
     
     premium = payout / weighted_total_annuity if weighted_total_annuity > 0 else 0
-    return premium
+    return premium, death_cdf
 
 def calculate_asset_growth(premium, current_age, payout_age, interest, payout, gender):
     """
@@ -581,4 +581,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
