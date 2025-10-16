@@ -237,7 +237,7 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
     # Initial bounds for premium search
     # Lower bound: minimal premium (almost zero)
     # Upper bound: premium that covers full payout in first year
-    base_premium=calculate_premium(current_age,payout_age,interest,payout,gender)
+    base_premium=calculate_premium(current_age,payout_age,interest,payout,gender)[0]
     if(target_risk > calculate_risk_tolerance(
         base_premium, payout,current_age,payout_age,interest,gender )):
             return base_premium
