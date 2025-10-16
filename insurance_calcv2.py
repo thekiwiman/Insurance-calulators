@@ -50,11 +50,11 @@ def load_death_probabilities():
     
     try:
         # Load female data
-        female_df = pd.read_csv('life-insurance-calculators/DeathProbsE_F_Alt2_TR2025.csv', skiprows=1)
+        female_df = pd.read_csv('DeathProbsE_F_Alt2_TR2025.csv', skiprows=1)
         # st.success("✅ Female data loaded successfully")
         
         # Load male data
-        male_df = pd.read_csv('life-insurance-calculators/DeathProbsE_M_Alt2_TR2025.csv', skiprows=1)
+        male_df = pd.read_csv('DeathProbsE_M_Alt2_TR2025.csv', skiprows=1)
         # st.success("✅ Male data loaded successfully")
         
         # Get 2025 data (most recent)
