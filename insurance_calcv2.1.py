@@ -2,18 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import math
-import plotly.graph_objects as go
+import plotly as go
 
-# ==============================================================================
-# PAGE CONFIGURATION
-# ==============================================================================
-
+# Page configuration
 st.set_page_config(
     page_title="Endowment Insurance Calculator",
     page_icon="💰",
     layout="wide"
 )
 
+# Custom CSS
 st.markdown("""
     <style>
     .main {
@@ -28,53 +26,39 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ==============================================================================
-# ACTUARIAL CALCULATION FUNCTIONS
-# ==============================================================================
-
-def accumulated_annuity(periods, interest_rate, annuity_type=1):
-    """
-    Calculate accumulated value of annuity.
-    
-    Args:
-        periods: Number of payment periods
-        interest_rate: Interest rate per period
-        annuity_type: 1 for ordinary annuity, 2 for annuity due
-    
-    Returns:
-        Accumulated value factor
-    """
-    if annuity_type == 1:
-        return (math.pow(1 + interest_rate, periods) - 1) / interest_rate
-    elif annuity_type == 2:
-        return (math.pow(1 + interest_rate, periods) - 1) / (math.pow((1 - 1 / interest_rate), -1))
+# Insurance Library Functions
+def accumulated_annuity(periods, i, type=1):
+    """Calculate accumulated value of annuity"""
+    if type == 1:
+        return (math.pow(1 + i, periods) - 1) / i
+    elif type == 2:
+        return (math.pow(1 + i, periods) - 1) / (math.pow((1 - 1 / i), -1))
     else:
         return 0
 
-
 @st.cache_data
 def load_death_probabilities():
-    """
-    Load and parse the death probability CSV files.
-    
-    Returns:
-        Dictionary with 'female' and 'male' pandas Series containing 2025 mortality data,
-        or None if files cannot be loaded
-    """
+    """Load and parse the death probability CSV files"""
     import os
     
+    # Try multiple possible locations
     possible_paths = [
-        ('DeathProbsE_F_Alt2_TR2025.csv', 'DeathProbsE_M_Alt2_TR2025.csv'),
-        ('data/DeathProbsE_F_Alt2_TR2025.csv', 'data/DeathProbsE_M_Alt2_TR2025.csv'),
-        ('./data/DeathProbsE_F_Alt2_TR2025.csv', './data/DeathProbsE_M_Alt2_TR2025.csv'),
+        ('DeathProbsE_F_Alt2_TR2025.csv', 'DeathProbsE_M_Alt2_TR2025.csv'),  # Root directory
+        ('data/DeathProbsE_F_Alt2_TR2025.csv', 'data/DeathProbsE_M_Alt2_TR2025.csv'),  # data subdirectory
+        ('./data/DeathProbsE_F_Alt2_TR2025.csv', './data/DeathProbsE_M_Alt2_TR2025.csv'),  # explicit relative path
     ]
     
+    # Try to find the files
     for female_path, male_path in possible_paths:
         if os.path.exists(female_path) and os.path.exists(male_path):
             try:
+                # Load female data
                 female_df = pd.read_csv(female_path, skiprows=1)
+                
+                # Load male data
                 male_df = pd.read_csv(male_path, skiprows=1)
                 
+                # Get 2025 data (most recent)
                 female_2025 = female_df[female_df['Year'] == 2025].iloc[0]
                 male_2025 = male_df[male_df['Year'] == 2025].iloc[0]
                 
@@ -82,36 +66,28 @@ def load_death_probabilities():
                     'female': female_2025,
                     'male': male_2025
                 }
-            except Exception:
+            except Exception as e:
                 continue
     
+    # If we get here, files weren't found
     st.error("❌ Unable to load actuarial data. Please ensure the CSV files are in the repository.")
     return None
 
-
 def get_death_probability(data, age, gender='female'):
-    """
-    Get death probability for a specific age and gender.
-    
-    Args:
-        data: Mortality data (dict or pandas Series)
-        age: Age to lookup
-        gender: 'female' or 'male'
-    
-    Returns:
-        Death probability as float (0.0 if not found)
-    """
+    """Get death probability for a specific age and gender"""
     if data is None:
         return 0.0
 
-    # Handle dictionary input
+    # If a dict was passed, pick the gender-specific entry
     if isinstance(data, dict):
         key = str(gender).lower()
-        data = data.get(key) or data.get('female') or data.get('male')
+        if key in data:
+            data = data[key]
+        else:
+            data = data.get('female') or data.get('male')
 
     prob = 0.0
-    
-    # Handle pandas Series
+    # If data is a pandas Series, try column lookup
     if isinstance(data, pd.Series):
         for lookup in (str(age), int(age) if isinstance(age, (str, float)) and str(age).isdigit() else None, age):
             if lookup is None:
@@ -125,10 +101,10 @@ def get_death_probability(data, age, gender='female'):
             except Exception:
                 continue
     else:
-        # Handle list/array/tuple-like data
+        # For list/array/tuple-like data
         try:
             idx = int(age)
-            if 0 <= idx < len(data):
+            if idx >= 0 and idx < len(data):
                 val = data[idx]
                 if pd.notna(val):
                     prob = float(val)
@@ -137,90 +113,109 @@ def get_death_probability(data, age, gender='female'):
 
     return prob
 
-
 def calculate_premium(current_age, payout_age, interest, payout, gender='female', risk_margin=1.0):
     """
-    Calculate premium for endowment insurance using actuarial principles.
+    Calculate premium for endowment insurance
     
     Args:
-        current_age: Age when policy starts
-        payout_age: Age when policy matures
-        interest: Annual interest rate (as decimal, e.g., 0.06 for 6%)
-        payout: Desired payout amount
-        gender: 'female' or 'male'
-        risk_margin: Multiplier for mortality rates (1.0 = standard, >1.0 = conservative)
-    
-    Returns:
-        Tuple of (annual_premium, cumulative_death_probability)
+        risk_margin: Multiplier for mortality rates (1.0 = standard, >1.0 = more conservative)
+                     - 1.0: Standard actuarial rates
+                     - 1.2: 20% safety margin (conservative)
+                     - 1.5: 50% safety margin (very conservative)
+                     - 0.8: 20% discount (aggressive/preferred risk)
     """
+    weighted_total_annuity = 0
     death_data = load_death_probabilities()
     
     if death_data is None:
         return None, None
     
-    weighted_total_annuity = 0
-    death_cdf = 0
-    prob_age_is_x = 1
     prob_death_given_age_is_x = 0
+    prob_death_and_age_is_x = 0
+    prob_age_is_x = 1
+    death_cdf = 0
     
     for evaluation_age in range(current_age, payout_age):
-        # Calculate survival probability to this age
-        prob_age_is_x *= (1 - prob_death_given_age_is_x)
+        prob_age_is_x = (1 - prob_death_given_age_is_x) * prob_age_is_x
         
-        # Get mortality rate and apply risk margin
+        # Get base mortality rate and apply risk margin
         base_death_prob = get_death_probability(death_data, evaluation_age, gender)
-        prob_death_given_age_is_x = min(base_death_prob * risk_margin, 1.0)
+        prob_death_given_age_is_x = min(base_death_prob * risk_margin, 1.0)  # Cap at 100%
         
-        # Calculate probability of death at this specific age
         if evaluation_age < payout_age - 1:
             prob_death_and_age_is_x = prob_age_is_x * prob_death_given_age_is_x
         else:
             prob_death_and_age_is_x = prob_age_is_x
             
         death_cdf += prob_death_and_age_is_x
-        
-        # Weight the annuity by probability of death at this age
-        annuity_factor = accumulated_annuity(evaluation_age - current_age, interest, 1)
-        weighted_total_annuity += annuity_factor * prob_death_and_age_is_x
+        weighted_total_annuity += accumulated_annuity(evaluation_age - current_age, interest, 1) * prob_death_and_age_is_x
     
     premium = payout / weighted_total_annuity if weighted_total_annuity > 0 else 0
-    
     return premium, death_cdf
 
+def calculate_asset_growth(premium, current_age, payout_age, interest, payout, gender):
+    """
+    Calculate how accumulated premiums grow over time compared to payout amount.
+    Returns data for visualization.
+    """
+    death_data = load_death_probabilities()
+    if death_data is None:
+        return None
+    
+    ages = []
+    accumulated_values = []
+    survival_probs = []
+    
+    prob_death_given_age_is_x = 0
+    prob_age_is_x = 1
+    
+    for age in range(current_age, payout_age + 1):
+        years_elapsed = age - current_age
+        
+        # Calculate accumulated value of premiums
+        if years_elapsed > 0:
+            accumulated_value = premium * accumulated_annuity(years_elapsed, interest, 1)
+        else:
+            accumulated_value = 0
+        
+        # Calculate survival probability
+        if age < payout_age:
+            prob_death_given_age_is_x = get_death_probability(death_data, age, gender)
+            prob_age_is_x = prob_age_is_x * (1 - prob_death_given_age_is_x)
+        
+        ages.append(age)
+        accumulated_values.append(accumulated_value)
+        survival_probs.append(prob_age_is_x * 100)
+    
+    return pd.DataFrame({
+        'Age': ages,
+        'Accumulated_Value': accumulated_values,
+        'Survival_Probability': survival_probs,
+        'Payout_Amount': [payout] * len(ages)
+    })
 
 def calculate_risk_tolerance(premium, payout, current_age, payout_age, interest, gender):
-    """
-    Calculate probability of death before premiums exceed payout (break-even risk).
-    
-    Returns:
-        Probability that death occurs before accumulated premiums exceed payout amount
-    """
+    """Calculate probability of death before premiums exceed payout"""
+    death_cdf = 0
+    prob_death_given_age_is_x = 0
+    prob_age_is_x = 1
     death_data = load_death_probabilities()
     
     if death_data is None:
         return 0
     
-    death_cdf = 0
-    prob_age_is_x = 1
-    prob_death_given_age_is_x = 0
-    
-    for age in range(current_age, payout_age):
-        # Update survival probability
-        prob_age_is_x *= (1 - prob_death_given_age_is_x)
-        prob_death_given_age_is_x = get_death_probability(death_data, age, gender)
-        
-        # Accumulate death probability
+    for x in range(current_age, payout_age):
+        prob_age_is_x = (1 - prob_death_given_age_is_x) * prob_age_is_x
+        prob_death_given_age_is_x = get_death_probability(death_data, x, gender)
         prob_death_and_age_is_x = prob_age_is_x * prob_death_given_age_is_x
         death_cdf += prob_death_and_age_is_x
         
-        # Check if accumulated premiums exceed payout
-        accumulated_premiums = premium * accumulated_annuity(age - current_age, interest, 1)
+        s = premium * accumulated_annuity(x - current_age, interest, 1)
         
-        if accumulated_premiums > payout:
+        if s > payout:
             return death_cdf
     
     return death_cdf
-
 
 def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, interest, gender, max_iterations=50):
     """
@@ -236,88 +231,50 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
         max_iterations: Maximum iterations for convergence
     
     Returns:
-        Tuple of (premium, actual_risk_tolerance)
+        premium: Annual premium that achieves target risk
+        actual_risk: Actual risk tolerance achieved
     """
-    # Check if target risk is achievable
-    base_premium, _ = calculate_premium(current_age, payout_age, interest, payout, gender)
-    base_risk = calculate_risk_tolerance(base_premium, payout, current_age, payout_age, interest, gender)
-    
-    if target_risk > base_risk:
-        return base_premium, base_risk
-    
-    # Binary search bounds
+    # Initial bounds for premium search
+    # Lower bound: minimal premium (almost zero)
+    # Upper bound: premium that covers full payout in first year
+    base_premium=calculate_premium(current_age,payout_age,interest,payout,gender)[0]
+    base_risk=calculate_risk_tolerance(base_premium, payout,current_age,payout_age,interest,gender )
+    if(target_risk > base_risk):
+            return base_premium, base_risk
     min_premium = 1
-    max_premium = payout * 2
+    max_premium = payout * 2  # Conservative upper bound
+    
     tolerance = 0.001  # 0.1% tolerance on risk
     
-    for _ in range(max_iterations):
+    for iteration in range(max_iterations):
+        # Try midpoint premium
         test_premium = (min_premium + max_premium) / 2
+        
+        # Calculate risk tolerance for this premium
         actual_risk = calculate_risk_tolerance(test_premium, payout, current_age, payout_age, interest, gender)
         
-        # Check convergence
+        # Check if we're close enough
         if abs(actual_risk - target_risk) < tolerance:
             return test_premium, actual_risk
         
         # Adjust search bounds
+        # If actual risk > target, we need higher premium (death happens before break-even more often)
+        # If actual risk < target, we need lower premium (premiums accumulate faster)
         if actual_risk > target_risk:
             min_premium = test_premium
         else:
             max_premium = test_premium
     
+    # Return best estimate even if not perfectly converged
     return test_premium, actual_risk
-
-
-def calculate_asset_growth(premium, current_age, payout_age, interest, payout, gender):
-    """
-    Calculate how accumulated premiums grow over time compared to payout amount.
     
-    Returns:
-        DataFrame with columns: Age, Accumulated_Value, Survival_Probability, Payout_Amount
-    """
-    death_data = load_death_probabilities()
-    
-    if death_data is None:
-        return None
-    
-    ages = []
-    accumulated_values = []
-    survival_probs = []
-    
-    prob_age_is_x = 1
-    prob_death_given_age_is_x = 0
-    
-    for age in range(current_age, payout_age + 1):
-        years_elapsed = age - current_age
-        
-        # Calculate accumulated value of premiums
-        accumulated_value = premium * accumulated_annuity(years_elapsed, interest, 1) if years_elapsed > 0 else 0
-        
-        # Calculate survival probability
-        if age < payout_age:
-            prob_death_given_age_is_x = get_death_probability(death_data, age, gender)
-            prob_age_is_x *= (1 - prob_death_given_age_is_x)
-        
-        ages.append(age)
-        accumulated_values.append(accumulated_value)
-        survival_probs.append(prob_age_is_x * 100)
-    
-    return pd.DataFrame({
-        'Age': ages,
-        'Accumulated_Value': accumulated_values,
-        'Survival_Probability': survival_probs,
-        'Payout_Amount': [payout] * len(ages)
-    })
-
-# ==============================================================================
-# USER INTERFACE
-# ==============================================================================
-
-def render_header():
-    """Render page header and introduction."""
+def main():
+    # Header
     st.markdown("<h1 style='text-align: center;'>💰 Endowment Insurance Premium Calculator</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>Calculate premiums for policies that guarantee a payout at maturity or death</p>", unsafe_allow_html=True)
     st.markdown("---")
     
+    # Info box
     st.info("""
     **What is Endowment Insurance?**
     
@@ -327,18 +284,20 @@ def render_header():
     
     This calculator determines the annual premium needed to guarantee your desired payout.
     """)
-
-
-def render_input_form():
-    """
-    Render input form and return user selections.
     
-    Returns:
-        Dictionary with keys: current_age, payout_age, gender, payout, interest, target_risk
-    """
+    # Load death probability data
+    death_prob_data = load_death_probabilities()
+    
+    if death_prob_data is None:
+        st.error("Unable to load actuarial data. Please ensure the CSV files are in the same directory.")
+        return
+    
     st.markdown("---")
     st.markdown("### 📋 Enter Policy Details")
     
+    # Pricing method selection
+    
+    # Create two columns for inputs
     col1, col2 = st.columns(2)
     
     with col1:
@@ -387,43 +346,43 @@ def render_input_form():
         ) / 100
         
         target_risk = st.slider(
-            "🎯 Target Risk Tolerance (%)",
-            min_value=0.1,
-            max_value=50.0,
-            value=5.0,
-            step=0.5,
-            help="Desired probability of death before premiums exceed payout"
-        ) / 100
+                "🎯 Target Risk Tolerance (%)",
+                min_value=0.1,
+                max_value=50.0,
+                value=5.0,
+                step=0.5,
+                help="Desired probability of death before premiums exceed payout"
+            ) / 100
+        
+    # Validation
+    if payout_age <= current_age:
+        st.error("Maturity age must be greater than current age!")
+        return
     
-    return {
-        'current_age': current_age,
-        'payout_age': payout_age,
-        'gender': gender,
-        'payout': payout,
-        'interest': interest,
-        'target_risk': target_risk
-    }
-
-
-def render_results(premium, risk_tolerance, actuarial_premium, inputs):
-    """Render calculation results and metrics."""
-    target_risk = inputs['target_risk']
-    payout = inputs['payout']
-    payout_age = inputs['payout_age']
-    current_age = inputs['current_age']
-    interest = inputs['interest']
-    gender = inputs['gender']
+    # Calculate premium
+    st.markdown("---")
+    
+    with st.spinner("Calculating premium..."):
+        
+            # Risk-target pricing: solve for premium that achieves target risk
+            premium, risk_tolerance = solve_premium_for_risk_target(
+                target_risk, payout, current_age, payout_age, interest, gender
+            )
+            
+            # Also calculate what the actuarial premium would be for comparison
+            actuarial_premium, death_cdf = calculate_premium(current_age, payout_age, interest, payout, gender, 1.0)
+            pricing_note = f"Premium calculated to achieve {target_risk*100:.1f}% risk tolerance"
+    
+    # Display results
+    st.markdown("<h2 style='text-align: center; color: #059669;'>Your Premium Calculation</h2>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; color: #6B7280; font-style: italic;'>{pricing_note}</p>", unsafe_allow_html=True)
+    
+    # Main metrics
+    col1, col2, col3 = st.columns(3)
     
     years = payout_age - current_age
     total_paid = premium * years
     accumulated_value = premium * accumulated_annuity(years, interest, 1)
-    
-    # Header
-    st.markdown("<h2 style='text-align: center; color: #059669;'>Your Premium Calculation</h2>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; color: #6B7280; font-style: italic;'>Premium calculated to achieve {target_risk*100:.1f}% risk tolerance</p>", unsafe_allow_html=True)
-    
-    # Main metrics
-    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.metric("Annual Premium", f"${premium:,.2f}")
@@ -434,7 +393,7 @@ def render_results(premium, risk_tolerance, actuarial_premium, inputs):
     with col3:
         st.metric("Accumulated Value at Maturity", f"${accumulated_value:,.2f}")
     
-    # Policy analysis
+    # Additional metrics
     st.markdown("---")
     st.markdown("### 📊 Policy Analysis")
     
@@ -447,21 +406,21 @@ def render_results(premium, risk_tolerance, actuarial_premium, inputs):
             help="Probability of death before accumulated premiums exceed payout"
         )
         
-        actuarial_risk = calculate_risk_tolerance(actuarial_premium, payout, current_age, payout_age, interest, gender)
+        # Show pricing method interpretation
         
-        st.success(f"""
-        **Risk-Target Pricing:**
-        
-        Premium calculated to achieve **{target_risk*100:.1f}%** target risk tolerance.
-        
-        Actual achieved risk: **{risk_tolerance * 100:.3f}%**
-        
-        This means there's a {risk_tolerance * 100:.3f}% chance you would pass away before 
-        your accumulated premiums exceed ${payout:,}.
-        
-        For comparison, standard actuarial pricing would be **${actuarial_premium:,.2f}/year**
-        with a risk tolerance of {actuarial_risk*100:.3f}%.
-        """)
+    st.success(f"""
+            **Risk-Target Pricing:**
+            
+            Premium calculated to achieve **{target_risk*100:.1f}%** target risk tolerance.
+            
+            Actual achieved risk: **{risk_tolerance * 100:.3f}%**
+            
+            This means there's a {risk_tolerance * 100:.3f}% chance you would pass away before 
+            your accumulated premiums exceed ${payout:,}.
+            
+            For comparison, standard actuarial pricing would be **${actuarial_premium:,.2f}/year**
+            with a risk tolerance of {calculate_risk_tolerance(actuarial_premium, payout, current_age, payout_age, interest, gender)*100:.3f}%.
+            """)
     
     with col2:
         st.metric(
@@ -481,112 +440,105 @@ def render_results(premium, risk_tolerance, actuarial_premium, inputs):
         This represents a **{roi:.1f}%** total return on your premium payments 
         (not accounting for the time value of money or interest earned).
         """)
-
-
-def render_growth_chart(premium, inputs):
-    """Render asset growth visualization."""
+    
+    # Detailed breakdown
     st.markdown("---")
     st.markdown("### 📈 Asset Growth Over Time")
     
-    growth_data = calculate_asset_growth(
-        premium, 
-        inputs['current_age'], 
-        inputs['payout_age'], 
-        inputs['interest'], 
-        inputs['payout'], 
-        inputs['gender']
-    )
+    # Generate asset growth data
+    growth_data = calculate_asset_growth(premium, current_age, payout_age, interest, payout, gender)
     
-    if growth_data is None:
-        return
-    
-    fig = go.Figure()
-    
-    # Add accumulated value line
-    fig.add_trace(go.Scatter(
-        x=growth_data['Age'],
-        y=growth_data['Accumulated_Value'],
-        name='Accumulated Premiums',
-        mode='lines',
-        line=dict(color='#059669', width=3),
-        hovertemplate='Age: %{x}<br>Value: $%{y:,.0f}<extra></extra>'
-    ))
-    
-    # Add payout line
-    fig.add_trace(go.Scatter(
-        x=growth_data['Age'],
-        y=growth_data['Payout_Amount'],
-        name='Payout Amount',
-        mode='lines',
-        line=dict(color='#DC2626', width=2, dash='dash'),
-        hovertemplate='Age: %{x}<br>Payout: $%{y:,.0f}<extra></extra>'
-    ))
-    
-    # Find break-even point
-    break_even_age = None
-    for i in range(len(growth_data)):
-        if growth_data['Accumulated_Value'].iloc[i] >= inputs['payout']:
-            break_even_age = growth_data['Age'].iloc[i]
-            break_even_value = growth_data['Accumulated_Value'].iloc[i]
-            break
-    
-    # Add break-even marker
-    if break_even_age:
+    if growth_data is not None:
+        import plotly.graph_objects as go
+        
+        # Create figure with secondary y-axis
+        fig = go.Figure()
+        
+        # Add accumulated value line
         fig.add_trace(go.Scatter(
-            x=[break_even_age],
-            y=[break_even_value],
-            name='Break-Even Point',
-            mode='markers',
-            marker=dict(color='#F59E0B', size=12, symbol='star'),
-            hovertemplate=f'Break-Even Age: {break_even_age}<br>Value: ${break_even_value:,.0f}<extra></extra>'
+            x=growth_data['Age'],
+            y=growth_data['Accumulated_Value'],
+            name='Accumulated Premiums',
+            mode='lines',
+            line=dict(color='#059669', width=3),
+            hovertemplate='Age: %{x}<br>Value: $%{y:,.0f}<extra></extra>'
         ))
-    
-    # Update layout
-    fig.update_layout(
-        title='Premium Accumulation vs Payout Amount',
-        xaxis_title='Age',
-        yaxis_title='Dollar Amount ($)',
-        hovermode='x unified',
-        template='plotly_white',
-        height=500,
-        showlegend=True,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-    )
-    
-    fig.update_yaxes(tickformat='$,.0f')
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Add explanation
-    if break_even_age:
-        st.info(f"""
-        📍 **Break-Even Analysis:**
         
-        Your accumulated premiums will exceed the payout amount at **age {break_even_age}**.
+        # Add payout line
+        fig.add_trace(go.Scatter(
+            x=growth_data['Age'],
+            y=growth_data['Payout_Amount'],
+            name='Payout Amount',
+            mode='lines',
+            line=dict(color='#DC2626', width=2, dash='dash'),
+            hovertemplate='Age: %{x}<br>Payout: $%{y:,.0f}<extra></extra>'
+        ))
         
-        - If you pass away before age {break_even_age}, your beneficiaries receive more than you paid in
-        - If you pass away after age {break_even_age}, you've paid more in premiums than the payout
-        - The probability of death before age {break_even_age} is **{calculate_risk_tolerance(premium, inputs['payout'], inputs['current_age'], inputs['payout_age'], inputs['interest'], inputs['gender'])*100:.3f}%**
-        """)
-    else:
-        st.info(f"""
-        📍 **Growth Analysis:**
+        # Find intersection point (break-even age)
+        break_even_age = None
+        for i in range(len(growth_data)):
+            if growth_data['Accumulated_Value'].iloc[i] >= payout:
+                break_even_age = growth_data['Age'].iloc[i]
+                break_even_value = growth_data['Accumulated_Value'].iloc[i]
+                break
         
-        Your accumulated premiums will reach **${growth_data['Accumulated_Value'].iloc[-1]:,.0f}** 
-        by age {inputs['payout_age']}, which is **below** the payout amount of ${inputs['payout']:,}.
+        # Add break-even marker if it exists
+        if break_even_age:
+            fig.add_trace(go.Scatter(
+                x=[break_even_age],
+                y=[break_even_value],
+                name='Break-Even Point',
+                mode='markers',
+                marker=dict(color='#F59E0B', size=12, symbol='star'),
+                hovertemplate=f'Break-Even Age: {break_even_age}<br>Value: ${break_even_value:,.0f}<extra></extra>'
+            ))
         
-        This means the payout always exceeds what you've paid, making this policy favorable from 
-        a pure financial perspective at all ages.
-        """)
-
-
-def render_calculation_details(inputs, death_cdf):
-    """Render calculation methodology details."""
+        # Update layout
+        fig.update_layout(
+            title=f'Premium Accumulation vs Payout Amount',
+            xaxis_title='Age',
+            yaxis_title='Dollar Amount ($)',
+            hovermode='x unified',
+            template='plotly_white',
+            height=500,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+        
+        # Format y-axis as currency
+        fig.update_yaxes(tickformat='$,.0f')
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add explanation
+        if break_even_age:
+            st.info(f"""
+            📍 **Break-Even Analysis:**
+            
+            Your accumulated premiums will exceed the payout amount at **age {break_even_age}**.
+            
+            - If you pass away before age {break_even_age}, your beneficiaries receive more than you paid in
+            - If you pass away after age {break_even_age}, you've paid more in premiums than the payout
+            - The probability of death before age {break_even_age} is **{risk_tolerance*100:.3f}%**
+            """)
+        else:
+            st.info(f"""
+            📍 **Growth Analysis:**
+            
+            Your accumulated premiums will reach **${growth_data['Accumulated_Value'].iloc[-1]:,.0f}** 
+            by age {payout_age}, which is **below** the payout amount of ${payout:,}.
+            
+            This means the payout always exceeds what you've paid, making this policy favorable from 
+            a pure financial perspective at all ages.
+            """)
+    
     st.markdown("---")
     st.markdown("### 🔍 How This Works")
-    
-    years = inputs['payout_age'] - inputs['current_age']
-    interest = inputs['interest']
     
     with st.expander("View Calculation Details"):
         st.markdown(f"""
@@ -596,7 +548,7 @@ def render_calculation_details(inputs, death_cdf):
            of all premium payments equals the expected present value of the payout.
         
         2. **Mortality Adjustment**: Uses 2025 Social Security Administration mortality tables 
-           to calculate the probability of death at each age from {inputs['current_age']} to {inputs['payout_age']}.
+           to calculate the probability of death at each age from {current_age} to {payout_age}.
         
         3. **Interest Accumulation**: Premiums accumulate with {interest*100:.1f}% annual interest, 
            creating a growing fund over time.
@@ -610,10 +562,8 @@ def render_calculation_details(inputs, death_cdf):
         - Total Death Probability: {death_cdf * 100:.3f}%
         - Survival Probability: {(1 - death_cdf) * 100:.3f}%
         """)
-
-
-def render_disclaimer():
-    """Render disclaimer."""
+    
+    # Disclaimer
     st.markdown("---")
     st.warning("""
     **Important Disclaimer:**
@@ -628,58 +578,6 @@ def render_disclaimer():
     
     **This is not a quote.** Contact a licensed insurance agent for actual pricing.
     """)
-
-# ==============================================================================
-# MAIN APPLICATION
-# ==============================================================================
-
-def main():
-    """Main application entry point."""
-    # Render header
-    render_header()
-    
-    # Load death probability data
-    death_prob_data = load_death_probabilities()
-    if death_prob_data is None:
-        st.error("Unable to load actuarial data. Please ensure the CSV files are in the same directory.")
-        return
-    
-    # Get user inputs
-    inputs = render_input_form()
-    
-    # Validate inputs
-    if inputs['payout_age'] <= inputs['current_age']:
-        st.error("Maturity age must be greater than current age!")
-        return
-    
-    # Calculate premium
-    st.markdown("---")
-    
-    with st.spinner("Calculating premium..."):
-        premium, risk_tolerance = solve_premium_for_risk_target(
-            inputs['target_risk'],
-            inputs['payout'],
-            inputs['current_age'],
-            inputs['payout_age'],
-            inputs['interest'],
-            inputs['gender']
-        )
-        
-        actuarial_premium, death_cdf = calculate_premium(
-            inputs['current_age'],
-            inputs['payout_age'],
-            inputs['interest'],
-            inputs['payout'],
-            inputs['gender'],
-            1.0
-        )
-    
-    # Render results
-    render_results(premium, risk_tolerance, actuarial_premium, inputs)
-    render_growth_chart(premium, inputs)
-    render_calculation_details(inputs, death_cdf)
-    render_disclaimer()
-
 
 if __name__ == "__main__":
     main()
