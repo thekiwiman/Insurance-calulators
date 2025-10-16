@@ -151,7 +151,7 @@ def calculate_premium(current_age, payout_age, interest, payout, gender='female'
         weighted_total_annuity += accumulated_annuity(evaluation_age - current_age, interest, 1) * prob_death_and_age_is_x
     
     premium = payout / weighted_total_annuity if weighted_total_annuity > 0 else 0
-    return premium, death_cdf
+    return premium
 
 def calculate_asset_growth(premium, current_age, payout_age, interest, payout, gender):
     """
@@ -237,10 +237,10 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
     # Initial bounds for premium search
     # Lower bound: minimal premium (almost zero)
     # Upper bound: premium that covers full payout in first year
-    base_prenium=calculate_premium(current_age,payout_age,interest,payout,gender)
+    base_premium=calculate_premium(current_age,payout_age,interest,payout,gender)
     if(target_risk > calculate_risk_tolerance(
-        base_prenium, payout,current_age,payout_age,interest,gender )):
-            return base_prenium
+        base_premium, payout,current_age,payout_age,interest,gender )):
+            return base_premium
     min_premium = 1
     max_premium = payout * 2  # Conservative upper bound
     
@@ -267,7 +267,7 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
     
     # Return best estimate even if not perfectly converged
     return test_premium, actual_risk
-
+    
 def main():
     # Header
     st.markdown("<h1 style='text-align: center;'>💰 Endowment Insurance Premium Calculator</h1>", unsafe_allow_html=True)
@@ -581,3 +581,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
