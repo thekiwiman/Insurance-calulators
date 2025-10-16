@@ -292,12 +292,6 @@ def main():
     st.markdown("### 📋 Enter Policy Details")
     
     # Pricing method selection
-    pricing_method = st.radio(
-        "💡 Pricing Method",
-        options=["Actuarial Pricing", "Risk-Target Pricing"],
-        help="Choose how to calculate premium",
-        horizontal=True
-    )
     
     # Create two columns for inputs
     col1, col2 = st.columns(2)
@@ -347,17 +341,7 @@ def main():
             help="Expected annual interest rate on accumulated premiums"
         ) / 100
         
-        if pricing_method == "Actuarial Pricing":
-            risk_margin = st.slider(
-                "🎯 Risk Margin",
-                min_value=0.5,
-                max_value=2.0,
-                value=1.0,
-                step=0.1,
-                help="Adjust mortality assumptions: <1.0 = aggressive, 1.0 = standard, >1.0 = conservative"
-            )
-        else:
-            target_risk = st.slider(
+        target_risk = st.slider(
                 "🎯 Target Risk Tolerance (%)",
                 min_value=0.1,
                 max_value=50.0,
@@ -375,18 +359,7 @@ def main():
     st.markdown("---")
     
     with st.spinner("Calculating premium..."):
-        if pricing_method == "Actuarial Pricing":
-            # Traditional actuarial method with risk margin
-            premium, death_cdf = calculate_premium(current_age, payout_age, interest, payout, gender, risk_margin)
-            
-            if premium is None:
-                st.error("Unable to calculate premium. Please check your inputs.")
-                return
-            
-            risk_tolerance = calculate_risk_tolerance(premium, payout, current_age, payout_age, interest, gender)
-            pricing_note = f"Using actuarial pricing with {risk_margin}x mortality adjustment"
-            
-        else:
+        
             # Risk-target pricing: solve for premium that achieves target risk
             premium, risk_tolerance = solve_premium_for_risk_target(
                 target_risk, payout, current_age, payout_age, interest, gender
@@ -430,27 +403,8 @@ def main():
         )
         
         # Show pricing method interpretation
-        if pricing_method == "Actuarial Pricing":
-            risk_interpretation = ""
-            if risk_margin < 0.9:
-                risk_interpretation = "**Aggressive Pricing** - Assuming lower mortality than standard tables"
-            elif risk_margin < 1.1:
-                risk_interpretation = "**Standard Pricing** - Using actuarial mortality tables as-is"
-            else:
-                risk_interpretation = "**Conservative Pricing** - Building in safety margin above standard mortality"
-            
-            st.info(f"""
-            **Break-Even Analysis:**
-            
-            There is a **{risk_tolerance * 100:.3f}%** probability that you would pass away before 
-            your accumulated premium payments (with interest) exceed the policy payout of ${payout:,}.
-            
-            {risk_interpretation}
-            
-            Risk Margin: **{risk_margin}x** standard mortality rates
-            """)
-        else:
-            st.success(f"""
+        
+    st.success(f"""
             **Risk-Target Pricing:**
             
             Premium calculated to achieve **{target_risk*100:.1f}%** target risk tolerance.
