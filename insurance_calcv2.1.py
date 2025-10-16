@@ -240,7 +240,7 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
     base_premium=calculate_premium(current_age,payout_age,interest,payout,gender)[0]
     if(target_risk > calculate_risk_tolerance(
         base_premium, payout,current_age,payout_age,interest,gender )):
-            return base_premium[0]
+            return base_premium
     min_premium = 1
     max_premium = payout * 2  # Conservative upper bound
     
@@ -581,4 +581,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
