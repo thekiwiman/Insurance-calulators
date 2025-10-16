@@ -553,7 +553,7 @@ def main():
         )
         
         # Format y-axis as currency
-        fig.update_yaxis(tickformat='$,.0f')
+        fig.update_yaxes(tickformat='$,.0f')
         
         st.plotly_chart(fig, use_container_width=True)
         
