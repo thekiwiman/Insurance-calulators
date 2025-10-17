@@ -304,7 +304,7 @@ def main():
         current_age = st.number_input(
             "👤 Current Age",
             min_value=18,
-            max_value=80,
+            max_value=90,
             value=25,
             step=1,
             help="Your age when the policy starts"
@@ -408,7 +408,7 @@ def main():
         
         # Show pricing method interpretation
         
-    st.success(f"""
+        st.success(f"""
             **Risk-Target Pricing:**
             
             Premium calculated to achieve **{target_risk*100:.1f}%** target risk tolerance.
@@ -434,7 +434,9 @@ def main():
         st.success(f"""
         **Investment Component:**
         
-        If you survive to age {payout_age}, you'll receive ${payout:,} after paying 
+        If you survive to age {payout_age}, you'll receive ${payout:,}
+          after paying
+
         ${total_paid:,.2f} in total premiums.
         
         This represents a **{roi:.1f}%** total return on your premium payments 
