@@ -314,7 +314,7 @@ def main():
             "🎯 Maturity Age",
             min_value=current_age + 5,
             max_value=100,
-            value=60,
+            value=99,
             step=1,
             help="Age when the policy matures (must be at least 5 years from current age)"
         )
