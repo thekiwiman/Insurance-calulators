@@ -14,128 +14,14 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
     <style>
-    /* Main background gradient matching personal site */
     .main {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(to bottom right, #F0FDF4, #DBEAFE);
     }
-    
-    /* Content sections with white cards */
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    /* Metric cards styling */
     .stMetric {
         background-color: white;
         padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .stMetric:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.15);
-    }
-    
-    /* Info boxes */
-    .stAlert {
         border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    
-    /* Headers */
-    h1 {
-        color: white !important;
-        text-align: center;
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    h2 {
-        color: white !important;
-        font-size: 1.8rem;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-    }
-    
-    h3 {
-        color: #667eea !important;
-        font-size: 1.3rem;
-        margin-top: 1rem;
-    }
-    
-    /* Input containers */
-    .stNumberInput, .stSlider, .stSelectbox {
-        background-color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    /* Buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 50px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Success/Info boxes */
-    .stSuccess {
-        background-color: white;
-        border-left: 4px solid #667eea;
-        border-radius: 10px;
-        padding: 1.5rem;
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background-color: white;
-        border-radius: 10px;
-        font-weight: 600;
-        color: #667eea;
-    }
-    
-    /* Plotly charts */
-    .js-plotly-plot {
-        background-color: white;
-        border-radius: 15px;
-        padding: 1rem;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    }
-    
-    /* Divider */
-    hr {
-        border-color: rgba(255, 255, 255, 0.2);
-        margin: 2rem 0;
-    }
-    
-    /* Input labels */
-    label {
-        color: white !important;
-        font-weight: 600;
-    }
-    
-    /* Markdown text on gradient background */
-    .main p {
-        color: white;
-    }
-    
-    /* Warning boxes */
-    .stWarning {
-        background-color: white;
-        border-left: 4px solid #F59E0B;
-        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     </style>
 """, unsafe_allow_html=True)
