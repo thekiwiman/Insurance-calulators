@@ -6,7 +6,7 @@ import plotly as go
 
 # Page configuration
 st.set_page_config(
-    page_title="Endowment Insurance Calculator",
+    page_title="Endowment Life Insurance Calculator",
     page_icon="📈",
     layout="wide"
 )
@@ -46,6 +46,7 @@ def load_death_probabilities():
         ('DeathProbsE_F_Alt2_TR2025.csv', 'DeathProbsE_M_Alt2_TR2025.csv'),  # Root directory
         ('data/DeathProbsE_F_Alt2_TR2025.csv', 'data/DeathProbsE_M_Alt2_TR2025.csv'),  # data subdirectory
         ('./data/DeathProbsE_F_Alt2_TR2025.csv', './data/DeathProbsE_M_Alt2_TR2025.csv'),  # explicit relative path
+        (r'life-insurance-calculators/DeathProbsE_F_Alt2_TR2025.csv',r'life-insurance-calculators/DeathProbsE_M_Alt2_TR2025.csv',)
     ]
     
     # Try to find the files
@@ -270,7 +271,8 @@ def solve_premium_for_risk_target(target_risk, payout, current_age, payout_age, 
     
 def main():
     # Header
-    st.markdown("<h1 style='text-align: center;'>Endowment Insurance Premium Calculator</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>Endowment Life Insurance Premium Calculator</h1>" \
+    "<h2 style='text-align: center;'> By Joshua Tse</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>Calculate premiums for policies that guarantee a payout at maturity or death</p>", unsafe_allow_html=True)
     st.markdown("---")
     
@@ -572,6 +574,8 @@ def main():
     
     **This is not a quote.** Contact a licensed insurance agent for actual pricing.
     """)
+    st.markdown("---")
+    st.link_button("Vist My Site :)","https://joshtse.fit/")
 
 if __name__ == "__main__":
     main()
