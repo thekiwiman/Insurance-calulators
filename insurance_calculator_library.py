@@ -5,28 +5,6 @@ import math
 import plotly as go
 
 
-# Page configuration
-st.set_page_config(
-    page_title="Endowment Life Insurance Calculator",
-    page_icon="📈",
-    layout="wide"
-)
-
-# Custom CSS
-st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(to bottom right, #F0FDF4, #DBEAFE);
-    }
-    .stMetric {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # Insurance Library Functions
 def accumulated_annuity(periods, i, type=1):
     """Calculate accumulated value of annuity"""

@@ -191,6 +191,7 @@ def main():
         )
         
         roi = ((payout / total_paid) - 1) * 100 if total_paid > 0 else 0
+        eai = ((payout / total_paid) ** (1 / years) - 1) * 100
         
         st.success(f"""
         **Investment Component:**
@@ -200,8 +201,7 @@ def main():
 
         ${total_paid:,.2f} in total premiums.
         
-        This represents a **{roi:.1f}%** total return on your premium payments 
-        (not accounting for the time value of money or interest earned).
+        This represents a **{roi:.1f}%** total return on your premium payments
         """)
     
     # Detailed breakdown
